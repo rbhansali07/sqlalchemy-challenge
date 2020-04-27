@@ -36,10 +36,17 @@ app = Flask(__name__)
 def Home():
     """List all available api routes."""
     return (
-        f"Available Routes:<br/>"
-        f"/api/v1.0/precipitation<br/>"
-        f"/api/v1.0/stations<br/>"
-        f"/api/v1.0/passengers"
+        f"Available Routes:<br/><br/>"
+        f"-Date and Precipitation information <br/>"
+        f"/api/v1.0/precipitation<br/><br/>"
+        f"-Station information<br/>"
+        f"/api/v1.0/stations<br/><br/>"
+        f"Temperature Observation for previous year for most active station<br/>"
+        f"/api/v1.0/tobs<br/><br/>"
+        f"-min, average, max temperature for a starting date e.g. /api/v1.0/2016-01-01<br/>"
+        f"/api/v1.0/start_date<br/><br/>"
+        f"-min, average, max temperature for a date range e.g. /api/v1.0/2016-01-01/2016-07-21<br/>"
+        f"/api/v1.0/start_date/end_date"
     )
 
 
@@ -55,11 +62,16 @@ def precip():
     
     # Perform a query to retrieve the data and precipitation scores
     prcp_data = session.query(Measurement.date, Measurement.prcp).filter(Measurement.date >= date_last_year).all()
-       
-
     session.close()
-
-    return jsonify(prcp_date)
+    
+    all_prcp = []
+    for date, prcp in prcp_data:
+        prcp_dict = {}
+        prcp_dict["date"] = date
+        prcp_dict["prcp"] = prcp
+        all_prcp.append(prcp_dict)
+    
+    return jsonify(all_prcp)
 
 
 @app.route("/api/v1.0/stations")
@@ -67,22 +79,79 @@ def stations():
     # Create our session (link) from Python to the DB
     session = Session(engine)
 
-    """Return a list of passenger data including the name, age, and sex of each passenger"""
-    # Query all passengers
-    results = session.query(Passenger.name, Passenger.age, Passenger.sex).all()
+    """Return list of stations"""
+    # Query all stations
+    station_data = session.query(Station.station, Station.name).all()
 
     session.close()
 
-    # Create a dictionary from the row data and append to a list of all_passengers
-    all_passengers = []
-    for name, age, sex in results:
-        passenger_dict = {}
-        passenger_dict["name"] = name
-        passenger_dict["age"] = age
-        passenger_dict["sex"] = sex
-        all_passengers.append(passenger_dict)
+    # Create a station dictionary
+    all_station = []
+    for station, name in station_data:
+        station_dict = {}
+        station_dict["station"] = station
+        station_dict["name"] = name
+        all_station.append(station_dict)
 
-    return jsonify(all_passengers)
+    return jsonify(all_station)
+
+@app.route("/api/v1.0/tobs")
+def temp_obs():
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+    
+    # find active station
+    active_station = session.query(Measurement.station, func.count(Measurement.station)).\
+    group_by(Measurement.station).\
+    order_by(func.count(Measurement.station).desc()).all()
+
+    """Return list of tempersture for previous year (2016)"""
+    # Query active station for temp data
+    temp_data = session.query(Station.name, Measurement.tobs, Measurement.date).\
+                filter(Measurement.date >= '2016-01-01').filter(Measurement.date <= '2016-12-31').\
+                filter(Measurement.station == active_station[0][0]).all()
+
+    session.close()
+
+    # Create a station dictionary
+    all_temp = []
+    for name, tobs, date in temp_data:
+        temp_dict = {}
+        temp_dict["Station Name"] = name
+        temp_dict["Temp observation"] = tobs
+        temp_dict["Date"] = date
+        all_temp.append(temp_dict)
+
+    return jsonify(all_temp)
+
+@app.route("/api/v1.0/<start>")
+def start(start=None):
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+   
+
+    """Return tmin, tavg, tmax for starting date"""
+    # Query active station for temp data
+    start_date_data = session.query(Measurement.date, func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
+                       filter(Measurement.date >= start).group_by(Measurement.date).all()
+
+    session.close()
+    
+    return jsonify(list(start_date_data))
+
+@app.route("/api/v1.0/<start>/<end>")
+def start_end(start=None, end=None):
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+   
+    """Return tmin, tavg, tmax for a date range"""
+    # Query active station for temp data
+    date_range_data = session.query(Measurement.date, func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
+                       filter(Measurement.date >= start).filter(Measurement.date <= end).group_by(Measurement.date).all()
+
+    session.close()
+    
+    return jsonify(list(date_range_data))
 
 
 if __name__ == '__main__':
