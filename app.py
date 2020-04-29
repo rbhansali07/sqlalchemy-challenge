@@ -44,9 +44,9 @@ def Home():
         f"Temperature Observation for previous year for most active station<br/>"
         f"/api/v1.0/tobs<br/><br/>"
         f"-min, average, max temperature for a starting date e.g. /api/v1.0/2016-01-01<br/>"
-        f"/api/v1.0/start_date<br/><br/>"
+        f"/api/v1.0/&ltstart_date&gt<br/><br/>"
         f"-min, average, max temperature for a date range e.g. /api/v1.0/2016-01-01/2016-07-21<br/>"
-        f"/api/v1.0/start_date/end_date"
+        f"/api/v1.0/&ltstart_date&gt/&ltend_date&gt"
     )
 
 
@@ -125,20 +125,21 @@ def temp_obs():
     return jsonify(all_temp)
 
 @app.route("/api/v1.0/<start>")
-def start(start=None):
+def start_date(start):
     # Create our session (link) from Python to the DB
+    
     session = Session(engine)
-   
+       
 
     """Return tmin, tavg, tmax for starting date"""
     # Query active station for temp data
     start_date_data = session.query(Measurement.date, func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
-                       filter(Measurement.date >= start).group_by(Measurement.date).all()
+                        filter(Measurement.date >= start).group_by(Measurement.date).all()
 
     session.close()
-    
+        
     return jsonify(list(start_date_data))
-
+        
 @app.route("/api/v1.0/<start>/<end>")
 def start_end(start=None, end=None):
     # Create our session (link) from Python to the DB
